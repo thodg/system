@@ -6,13 +6,8 @@
 
 (in-package :common-lisp-user)
 
-(when (find-package :asdf/interface)
-  (delete-package :asdf/user)
-  (delete-package :asdf/interface))
-
 (defpackage :system
   (:use :common-lisp)
-  (:nicknames :asdf)
   (:export #:system
 	   #:defsystem
 	   #:load-asd
