@@ -1,0 +1,47 @@
+#!/bin/sh
+if [ $# = 0 ]; then
+    cd "$(dirname "$0")"
+    exec "$0" *.lisp
+fi
+cd "$(dirname "$0")/.."
+OK=0
+KO=0
+TOTAL=0
+OK_OUT="test/ok.out"
+echo -n > "$OK_OUT"
+ok_out() {
+    echo "$@"
+    echo "$@" >> "$OK_OUT"
+}
+KO_OUT="test/ko.out"
+echo -n > "$KO_OUT"
+ko_out() {
+    echo "$@"
+    echo "$@" >> "$KO_OUT"
+}
+ok_out "test/ok.out"
+ko_out "test/ko.out"
+for F; do
+    OUT=test/"$F".out
+    CMD="sbcl -l system.lisp -l '$F' > '$OUT' 2>&1 </dev/null"
+    echo $CMD
+    if $CMD; then
+        OK=$(($OK + 1))
+        ok_out "###"
+        ok_out "### OK $OK $F"
+        ok_out "###"
+        cat "$OUT"
+        cat "$OUT" >> "$OK_OUT"
+        ok_out
+    else
+        KO=$(($KO + 1))
+        ko_out "###"
+        ko_out "### KO $KO $F"
+        ko_out "###"
+        cat "$OUT"
+        cat "$OUT" >> "$KO_OUT"
+        ko_out
+    fi
+    TOTAL=$(($TOTAL + 1))
+done
+ko_out "KO $KO - OK $OK - TOTAL $TOTAL"
