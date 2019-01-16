@@ -30,10 +30,13 @@
    #:containe
    #:find-system
    #:load-asd
+   #:load-op
    #:load-system
+   #:operate
    #:parse-component
    #:system
    #:*systems*
+   #:test-op
    ))
 
 (defpackage :package-system-user
@@ -115,8 +118,7 @@
 	    :reader component-license
 	    :type string)
    (version :initarg :version
-	    :reader component-version
-	    :type string)))
+	    :reader component-version)))
 
 (defclass child-component (component)
   ((parent :initarg :parent
@@ -189,12 +191,14 @@
             (parse-component parent comp))
           components))
 
-(defun component-is-dependent-on (component other)
-  (find other (the list (component-depends-on component)) :test #'eq))
+(defun component-is-dependency (component other)
+  (find (component-name component)
+        (component-depends-on other)
+        :test #'string=))
 
 (defun sort-components (components)
   (declare (type list components))
-  (sort components 'component-is-dependent-on))
+  (sort components #'component-is-dependency))
 
 (defmethod initialize-instance :after ((obj container) &rest initargs
                                        &key &allow-other-keys)
@@ -216,21 +220,21 @@
   (make-hash-table :test 'equal))
 
 (defvar *pathname*)
-(defvar *dir*)
 
 (defmacro defsystem (name &body options)
   (let* ((name (string-downcase name))
+         (pathname (namestring *load-pathname*))
+         (dir (path-dirname pathname))
 	 (system (apply 'make-instance 'system
 			(plist-merge options
                                      `(:name ,name
-                                       :dir ,*dir*
-                                       :pathname ,*pathname*)))))
+                                       :dir ,dir
+                                       :pathname ,pathname)))))
     `(setf (gethash ,name *systems*) ,system)))
 
 (defun load-asd (pathname)
   (let* ((*package* (find-package :package-system-user))
-         (*pathname* (str pathname))
-         (*dir* (path-dirname *pathname*)))
+         (*pathname* (str pathname)))
     (load pathname)))
 
 ;;  find system
@@ -242,17 +246,23 @@
 
 (defclass op () ())
 
-(defgeneric op (op component))
+(defgeneric operate (op component))
+
+(defmethod operate (op component)
+  ())
 
 (defclass load-op (op)
   ((components :initform nil
 	       :accessor op-components
 	       :type list)))
 
-(defmethod op ((op (eql 'load-op)) component)
-  (op (make-instance op) component))
+(defclass test-op (op)
+  ())
 
-(defmethod op ((op load-op) (source cl-source-file))
+(defmethod operate ((op (eql 'load-op)) component)
+  (operate (make-instance op) component))
+
+(defmethod operate ((op load-op) (source cl-source-file))
   (load (component-pathname source)))
 
 ;;  searching systems
@@ -277,12 +287,12 @@
       (error "system not found ~S" s)))
 
 (defun load-system (s)
-  (op 'load-op (system s)))
+  (operate 'load-op (system s)))
 
-(defmethod op ((op load-op) (system system))
+(defmethod operate ((op load-op) (system system))
   (unless (find system (op-components op))
     (push system (op-components op))
     (dolist (sys (component-depends-on system))
-      (op op (system sys)))
+      (operate op (system sys)))
     (dolist (comp (component-components system))
-      (op op comp))))
+      (operate op comp))))
